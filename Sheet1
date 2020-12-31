@@ -1,0 +1,430 @@
+Public FilePath As String
+Public htmlStr As String
+Private Sub CommandButton1_Click()
+FilePath = Worksheets("Control").Cells(1, 2).Text
+
+FilterTheData
+BuildContent
+UpdateHTMLFile
+OpenHTMLFile
+End Sub
+
+
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+
+End Sub
+Sub OpenHTMLFile()
+
+    
+    Dim ie As Object
+    Set ie = CreateObject("Internetexplorer.Application")
+    ie.Visible = True
+    ie.Navigate FilePath
+End Sub
+Sub FilterTheData()
+Dim datasheet As Worksheet
+Set datasheet = ThisWorkbook.Worksheets("Data")
+
+Dim controlsheet As Worksheet
+Set controlsheet = ThisWorkbook.Worksheets("Control")
+
+datasheet.Range("E1").AutoFilter Field:=5, Criteria1:=controlsheet.Cells(2, 2)
+Dim CopyRng, DataRng As Range
+Set DataRng = datasheet.Range("$A$1:$U$4630")
+Set CopyRng = DataRng.SpecialCells(xlCellTypeVisible)
+
+
+If DoesSheetExist("Temp", ThisWorkbook) Then
+    Set TransfersSheet = Worksheets("Temp")
+    TransfersSheet.Delete
+End If
+
+'create transfers sheet
+Set TransfersSheet = Worksheets.Add
+TransfersSheet.Name = "Temp"
+
+'paste the copied range to the transfers sheet
+CopyRng.Copy
+TransfersSheet.Range("A1").PasteSpecial Paste:=xlPasteAll
+
+
+End Sub
+Public Function DoesSheetExist(sheetName As String, BookName As Workbook) As Boolean
+    Dim obj As Object
+    On Error Resume Next
+    'if there is an error, sheet doesn't exist
+    Set obj = BookName.Worksheets(sheetName)
+    If Err = 0 Then
+        DoesSheetExist = True
+    Else
+        DoesSheetExist = False
+    End If
+    On Error GoTo 0
+End Function
+
+Sub BuildHeader()
+    Dim htmlStr As String
+    Dim htmlHeader As String
+    Dim optionalHeader As String
+    Dim optionalContent As String
+  
+End Sub
+
+Sub BuildContent()
+    Dim htmlHeader As String
+    headerContent = "<!DOCTYPE html><html><head><script src='BusinessLogic.js'></script><link href='custom-style.css' rel='stylesheet'></head><body>  <form action='/action_page.php' class='" + ThisWorkbook.Worksheets("Control").Cells(2, 2) + "'>"
+    headerContent = headerContent + "<h2 class='main-header'>#Title#</h2>"
+    headerContent = headerContent + "<div class='doc-info'><b>REF DOC: </b>#REFDOC#<br>" + _
+    "<b>BASE NAME: </b>#BaseName#<br><b>REVISION DATE: </b>#REVDATE#<br><b>REVISION NO: </b>#REVNO#<br></div>"
+    
+    optionalHeader = "<div class='completiontd'><table border='0' style='table-layout: fixed; margin-left:0%; margin-right: 0%'>" + _
+    "<tbody>#DataContent#</tbody>" + _
+    "</table></div>"
+    
+    headerContent = headerContent + "#DataLabel#<div class='completiontd'><b>ACTION PERFORMED CODE: </b>" + _
+    "#ActionPerformed#</div><div class='completiontd'><b>PREREQUISITES: </b></div>" + _
+        "<div class='completiontd'><table border=0 class='prerequisite'>" + _
+        "<tr><td><b>ABBREVIATIONS:</b>#Abbreviations#</td></tr><tr></tr><tr></tr><tr></tr>" + _
+                "<tr><td><b>TOOLS: </b>#Tools#</td></tr><tr></tr><tr></tr><tr></tr>" + _
+                "<tr><td><b>PARTS: </b>#Parts#</td></tr><tr></tr><tr></tr><tr></tr><tr></tr>" + _
+        "<tr><td><b>CLEARANCES AND PERMITS: </b>#Clearance#</td></tr></table></div>"
+
+    Dim isTableVisible As String
+    Dim datasheet As Worksheet
+    Set datasheet = ThisWorkbook.Worksheets("Temp")
+    Dim controlsheet As Worksheet
+    Set controlsheet = ThisWorkbook.Worksheets("Control")
+    Dim htmlTable As String
+    Dim htmlRow As String
+    Dim prevStepString As String
+    Dim data As Variant
+    Dim rowcount As Integer
+    Dim prevStep As Integer
+    Dim formName As String
+    
+    prevStep = 1
+    prevStepString = "1"
+
+    rowcount = Worksheets("Temp").UsedRange.Rows.Count
+    
+    Dim toolsArray(0 To 10) As String
+    Dim abbreviationsArray(0 To 10) As String
+    Dim partsArray(0 To 10) As String
+    Dim clearanceArray(0 To 30) As String
+    Dim dataArray(0 To 20) As String
+    Dim partsSubArray(0 To 20) As String
+    Dim dropDownArray(0 To 20) As String
+    
+    
+    Dim toolsIndex As Integer
+    Dim abbreviationsIndex As Integer
+    Dim partsIndex As Integer
+    Dim partsSubIndex As Integer
+    Dim clearanceIndex As Integer
+    Dim dataIndex As Integer
+    Dim dropDownIndex As Integer
+    
+    
+    Dim toolsHtml As String
+    Dim partsHtml As String
+    Dim abbreviationsHtml As String
+    Dim clearanceHtml As String
+    Dim dataHtml As String
+    Dim partsSubHtml As String
+    Dim WarningRangeMin As String
+    Dim WarningRangeMax As String
+    Dim ErrorRangeMin As String
+    Dim ErrorRangeMax As String
+    Dim dropDownData As Variant
+    
+    
+    
+    toolsHtml = ""
+    partsHtml = ""
+    abbreviationsHtml = ""
+    dataHtml = ""
+    partsSubHtml = ""
+    
+    dataIndex = -1
+    dropDownIndex = -1
+    
+    htmlRow = headerContent
+
+    
+    For i = 2 To rowcount
+        'prevStepString = CStr(prevStep)
+        
+        'Drop Down value capture:
+        If datasheet.Cells(i, 13).Text = "DropDown" And datasheet.Cells(i, 14).Text <> Empty Then
+            dropDownData = Split(Replace(Replace(datasheet.Cells(i, 14).Text, "[", ""), "]", ""), ",")
+            dropDownIndex = UBound(dropDownData) - LBound(dropDownData)
+        End If
+        
+        
+        'Read in the ranges for warning range:
+        If datasheet.Cells(i, 18).Text <> Empty Then
+            WarningRangeMin = datasheet.Cells(i, 18).Text
+        End If
+        
+        If datasheet.Cells(i, 19).Text <> Empty Then
+            WarningRangeMax = datasheet.Cells(i, 19).Text
+        End If
+        
+        'Read in the ranges for error Ranges:
+        If datasheet.Cells(i, 20).Text <> Empty Then
+            ErrorRangeMin = datasheet.Cells(i, 20).Text
+        End If
+        
+        If datasheet.Cells(i, 21).Text <> Empty Then
+            ErrorRangeMax = datasheet.Cells(i, 21).Text
+        End If
+
+        'Underline data goes here
+        If datasheet.Cells(i, 10).Text = "Input-Underlined" Then
+            htmlRow = Replace(htmlRow, "#DataLabel#", optionalHeader)
+            dataIndex = dataIndex + 1
+            dataArray(dataIndex) = datasheet.Cells(i, 6).Text
+        End If
+            
+        'Replace the title:
+        If datasheet.Cells(i, 10).Text = "Main-Header" Then
+            htmlRow = Replace(htmlRow, "#Title#", datasheet.Cells(i, 6).Text)
+        End If
+    
+        'Replace the document info:
+        If datasheet.Cells(i, 10).Text = "Doc-Info" Then
+            data = Split(datasheet.Cells(i, 6).Text, ",")
+            htmlRow = Replace(htmlRow, "#REFDOC#", data(0))
+            htmlRow = Replace(htmlRow, "#BaseName#", data(1))
+            htmlRow = Replace(htmlRow, "#REVDATE#", data(2))
+            htmlRow = Replace(htmlRow, "#REVNO#", data(3))
+        End If
+        
+        'Replace Action Performed:
+        If datasheet.Cells(i, 10).Text = "Action-Performed-Code" Then
+            htmlRow = Replace(htmlRow, "#ActionPerformed#", datasheet.Cells(i, 6).Text)
+        End If
+    
+        'Obtain the list of tools, abbreviations and Clearance
+        If datasheet.Cells(i, 10).Text = "Pre-Req-Abbreviations" Then
+            abbreviationsArray(abbreviationsIndex) = datasheet.Cells(i, 6).Text
+            abbreviationsIndex = abbreviationsIndex + 1
+        End If
+    
+        If datasheet.Cells(i, 10).Text = "Pre-Req-Parts" Then
+            partsArray(partsIndex) = "<div style='margin-left:2.5em'>" + datasheet.Cells(i, 6).Text + "</div>"
+            partsIndex = partsIndex + 1
+        End If
+        
+        If datasheet.Cells(i, 10).Text = "Pre-Req-Parts-Sub" Then
+            partsArray(partsIndex) = "<div style='margin-left:4.5em'>" + datasheet.Cells(i, 6).Text + "</div>"
+            partsIndex = partsIndex + 1
+        End If
+    
+        If datasheet.Cells(i, 10).Text = "Pre-Req-Tools" Then
+            toolsArray(toolsIndex) = datasheet.Cells(i, 6).Text
+            toolsIndex = toolsIndex + 1
+        End If
+    
+        If datasheet.Cells(i, 10).Text = "Pre-Req-Clearance" Then
+            'htmlRow = Replace(htmlRow, "#Clearance#", DataSheet.Cells(i, 6).Text)
+            clearanceArray(clearanceIndex) = datasheet.Cells(i, 6).Text
+            clearanceIndex = clearanceIndex + 1
+        End If
+
+        'Go through the rest of the rows for the Body
+        If datasheet.Cells(i, 10).Text = "Header" Then
+            htmlRow = htmlRow + "</div>"
+            htmlRow = htmlRow + "<div class= 'Header formData' lineno =" + datasheet.Cells(i, 2).Text + " stepNum=" + datasheet.Cells(i, 3).Text + "> <label class='completionLabel'> <u><b style='padding-left: 15px;color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 6).Text + "</b></u></label></div>"
+        
+        'Steps of the form: 1,2,3:
+        ElseIf datasheet.Cells(i, 10).Text = "Steps" Then
+        
+            If prevStepString <> datasheet.Cells(i, 3).Text And datasheet.Cells(i - 1, 10).Text <> "Header" Then
+                htmlRow = htmlRow + "</div></div></div></div>"
+            End If
+        
+            prevStepString = datasheet.Cells(i, 3).Text
+        
+            If (datasheet.Cells(i, 13).Text <> "DropDown") Then
+                htmlRow = htmlRow + "  <div class='panel panel-default'><div class='collapsible' role='tab' id='heading" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' style='background:rgb(53, 152, 220);height:40px'><h4 class='panel-title'><a class='collapsed' role='button' data-toggle='collapse' data-parent='#accordion' href='#collapse" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' aria-expanded='false' aria-controls='collapse" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'>" + datasheet.Cells(i, 17).Text + _
+                "</a></h4></div><div  id='collapse_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' class='panel-collapse collapse ' role='tabpanel' aria-labelledby='heading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'><div class='panel-body content'>" + _
+                "<div class='Steps formData' lineno =" + datasheet.Cells(i, 2).Text + " stepNo=" + datasheet.Cells(i, 3).Text + " meterId=" + datasheet.Cells(i, 4).Text + "><table border=0 style = table-layout: fixed;><tr style='height:2px;'><td class= 'completiontd'  width=10%><div><input type='text' class= 'initials-box' style='color: white;font-weight: bold;' required pattern='[A-Za-z0-9]{2,}' id='Initials_" + controlsheet.Cells(2, 2).Text + "_" + CStr(i) + "' minlength=2 title='2 characters minimum'  onblur='validateInitial(id)' value='' /></div> </td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd' width='50%' ><div id='stepDesc_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' class='stepDesc' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 6).Text + "</div></td><td></td></tr></table></div>"
+                
+                'If column R and S has values:
+                If (datasheet.Cells(i, 18).Text <> Empty) Then
+                    'Warning Range
+                    'htmlRow = Replace(htmlRow,"<input type='text' class= 'initials-box' style='color: white;font-weight: bold;' required pattern='[A-Za-z0-9]{2,}' id='Initials_" + ControlSheet.Cells(2, 2).Text + "_" + CStr(i) + "' minlength=2 title='2 characters minimum'  onblur='validateInitial(id)' value='' />","<input type='text' class= 'initials-box' style='color: white;font-weight: bold;' required pattern='[A-Za-z0-9]{2,}' id='Initials_" + ControlSheet.Cells(2, 2).Text + "_" + CStr(i) + "' minlength=2 title='2 characters minimum'  onblur='validateInitial(id)' value='' />"
+                    
+                End If
+                
+                If (datasheet.Cells(i, 19).Text <> Empty) Then
+                    'Error Range
+                End If
+                    
+                
+                
+            ElseIf (datasheet.Cells(i, 13).Text = "DropDown") Then
+                htmlRow = htmlRow + "<div class='panel panel-default'><div class='collapsible' role='tab' id='heading" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' style='background:rgb(53, 152, 220);height:40px'><h4 class='panel-title'><a class='collapsed' role='button' data-toggle='collapse' data-parent='#accordion' href='#collapse" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' aria-expanded='false' aria-controls='collapse" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'>" + datasheet.Cells(i, 17).Text + _
+                "</a></h4></div><div  id='collapse" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' class='panel-collapse collapse ' role='tabpanel' aria-labelledby='heading" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'><div class='panel-body content'>" + _
+                "<div class=  'Steps formData' lineno =" + datasheet.Cells(i, 2).Text + " stepNo=" + datasheet.Cells(i, 3).Text + " meterId=" + datasheet.Cells(i, 4).Text + "><table border=0 style = table-layout: fixed;>" + "<tr><td class= 'completiontd'  width=10%><div><input type= text class= 'initials-box' style='color: white;font-weight: bold;' required pattern='[A-Za-z]{2}' id='Initials_" + controlsheet.Cells(2, 2).Text + "_" + CStr(i) + _
+                "' minlength=2 title='2 characters minimum'  onblur='validateInitial(id)' value='' /></div> </td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'><div id='stepDesc_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "' class='stepDesc' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 6).Text + "</div></td><td class='completiontd'><label class='completionLabel'> </label></td><td class= 'completiontd'><div><select style='width: 50%;'" + _
+                "id='selectID_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' onchange=selectionChanged(this,id)><option value='Select' selected>Select</option>"
+                For a = 0 To dropDownIndex
+                    htmlRow = htmlRow + "<option value='" + dropDownData(a) + "'>" + dropDownData(a) + "</option>"
+                Next
+                '"<option value='" + DataSheet.Cells(i, 14).Text + "'>" + DataSheet.Cells(i, 14).Text + "</option><option value='" + DataSheet.Cells(i, 15).Text + "'>" + DataSheet.Cells(i, 15).Text + "</option><option value='" + DataSheet.Cells(i, 16).Text + "'>" + DataSheet.Cells(i, 16).Text + "</option>"
+                htmlRow = htmlRow + "</select></div></td></tr></table></div>"
+            End If
+            
+        'Substeps of the form 1.a that may or may not have an input associated:
+        ElseIf datasheet.Cells(i, 10).Text = "Substeps" Then
+        
+            If (datasheet.Cells(i, 13).Text = Empty) Then
+                htmlRow = htmlRow + "<div class=  'Substeps formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "><table border=0 style = table-layout: fixed;>" + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)' >" + datasheet.Cells(i, 17).Text + "</div></td><td class='completiontd'  class='description'><label class='completionLabel' id='subSteps_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td></tr></table></div>"
+            ElseIf (datasheet.Cells(i, 13).Text = "TextBox") Then 'Here
+                htmlRow = htmlRow + "<div class=  'Substeps formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "><table border=0 style = table-layout: fixed;>" + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)' >" + datasheet.Cells(i, 17).Text + "</div></td><td class='completiontd'  class='description'><label class='completionLabel' id='subSteps_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td class= 'completiontd'  class='meterReading'><input type='text' name='' value='' style='width: 50%;' id='subInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "'/></td></tr></table></div>"
+            ElseIf (datasheet.Cells(i, 13).Text = "Date") Then
+                htmlRow = htmlRow + "<div class=  'Substeps formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "><table border=0 style = table-layout: fixed;>" + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)' >" + datasheet.Cells(i, 17).Text + "</div></td><td class='completiontd'  class='description'><label class='completionLabel' id='subSteps_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td class= 'completiontd'  class='meterReading'><input type='date' name='' value='' style='width: 50%;' id='subInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "'/></td></tr></table></div>"
+            ElseIf (datasheet.Cells(i, 13).Text = "DropDown") Then
+                htmlRow = htmlRow + "<div class=  'Substeps formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "><table border=0 style = table-layout: fixed;>" + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + _
+                datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'  class='description'>" + _
+                "<label class='completionLabel' id='subSteps_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td class= 'completiontd' ><select style='width: 50%;' id='selectID_" + controlsheet.Cells(2, 2) + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' onchange=selectionChanged(this,id)><option value='Select' selected>Select</option>"
+                For a = 0 To dropDownIndex
+                    htmlRow = htmlRow + "<option value='" + dropDownData(a) + "'>" + dropDownData(a) + "</option>"
+                Next
+                htmlRow = htmlRow + "</select></td></tr></table></div>"
+            End If
+        
+        'The below will have a box surrounding the text inside:
+        ElseIf datasheet.Cells(i, 10).Text = "CommentBox" Then
+        
+            htmlRow = htmlRow + "<div class='custom-box' style='margin-left: 17%; margin-right: 42%'>" + _
+            "<div class='completiontd' style='padding-bottom:0em;'>" + datasheet.Cells(i, 6).Text + "</div></div>"
+            
+        'The below are readings with a unit and without previous readings:
+        ElseIf datasheet.Cells(i, 10).Text = "Readings" Then 'Here
+        
+            If datasheet.Cells(i, 9).Text = Empty Then
+                htmlRow = htmlRow + "<div class=  'Readings formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table border=0 style = table-layout: fixed;> " + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class='completiontd'  class='description'><label class='completionLabel' id='label_reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class='completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td>"
+                If (datasheet.Cells(i, 18).Text <> Empty Or datasheet.Cells(i, 18).Text <> Empty) Then
+                    htmlRow = htmlRow + "<div class='tooltip'><input type='text' name='' value='' style='width:50%;border-color: rgb(2, 113, 182)' id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' onblur='validateErrorWarningRange(id, " + WarningRangeMin + "," + WarningRangeMax + "," + ErrorRangeMin + "," + ErrorRangeMax + ")'/></div>"
+                Else
+                    htmlRow = htmlRow + "<input type='text' name='' value='' style='width:50%;border-color: rgb(2, 113, 182)' id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "'/>"
+                End If
+                htmlRow = htmlRow + "<label class='completionLabel' for=''  class='units' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 9).Text + "</label> </td></tr></table></div>"
+            ElseIf datasheet.Cells(i, 11).Text <> Empty Then
+                htmlRow = htmlRow + "<div class=  'Readings formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table border=0 style = table-layout: fixed;><tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class='completiontd'  class='description' width=50%><label class='completionLabel' id='label_reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class='completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td class= 'completiontd'  class='meterReading'>" + _
+                "<input type='text'  style='width:100%' id='reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' onblur='minmax(this.value," + datasheet.Cells(i, 11).Text + "," + datasheet.Cells(i, 12).Text + ", this.id)'  min='" + datasheet.Cells(i, 11).Text + "'max='" + datasheet.Cells(i, 12).Text + "'/>" + _
+                "</div></td><td class= 'completiontd' ><label class='units' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 9).Text + "</label></td><td class='completiontd' >" + _
+                "</td><td class= 'completiontd' ></td></td></tr></table></div>"
+            ElseIf datasheet.Cells(i, 9).Text <> Empty Then
+                htmlRow = htmlRow + "<div class=  'Readings formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table style = table-layout: fixed;> " + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'  class='description'  width=50%><label class='completionLabel' id='label_reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class='completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label><td class= 'completiontd' >"
+                If (datasheet.Cells(i, 18).Text <> Empty) Then
+                    htmlRow = htmlRow + "<div class='tooltip'><input style='width:100%' type='text' name='' value='' id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' onblur='validateErrorWarningRange(id," + WarningRangeMin + "," + WarningRangeMax + "," + ErrorRangeMin + "," + ErrorRangeMax + ")' /></div>"
+                Else
+                    htmlRow = htmlRow + "<input style='width:100%' type='text' name='' value='' id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' />"
+                End If
+                htmlRow = htmlRow + "</td><td class= 'completiontd' ><label class='units' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 9).Text + "</label></td><td class= 'completiontd' >" + _
+                "</td><td class= 'completiontd' ></td> </td></tr></table></div>"
+            End If
+        
+        'The below are readings with unit and with previous readings:
+        ElseIf datasheet.Cells(i, 10).Text = "ReadingsHistory" Then 'Here
+        
+            If datasheet.Cells(i, 9).Text = Empty Then
+                htmlRow = htmlRow + "<div class=  'ReadingsHistory formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table border=0 style = table-layout: fixed;><tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'  class='description'><label class='completionLabel' id='label_reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td><input id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + _
+                "' type='text' name=''  value=''  style='width:50%;border-color: rgb(2, 113, 182)' /><label class='completionLabel' for=''   class='units' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 9).Text + "</label> </td></tr></table></div>"
+            ElseIf datasheet.Cells(i, 11).Text <> Empty Then
+                htmlRow = htmlRow + "<div class=  'ReadingsHistory formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table border=0 style = table-layout: fixed;><tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'  class='description' width=50%><label class='completionLabel' id='label_reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td><td class= 'completiontd'  class='meterReading'>" + _
+                "<input type='text'  style='width:100%' id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' onblur='minmax(this.value," + datasheet.Cells(i, 11).Text + "," + datasheet.Cells(i, 12).Text + ", this.id)'  min='" + datasheet.Cells(i, 11).Text + "'max='" + datasheet.Cells(i, 12).Text + "'/></div></td><td class= 'completiontd' ><label class='units' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 9).Text + "</label></td><td class= 'completiontd' ><div class='popup' onclick=myFunction(" + CStr(i) + ")><span class='popuptext' id='myPopup" + CStr(i) + "'>12/12/2017</span><input style='width:100%' type='text' name='' value='' disabled id='inputdisabled_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "'/></div>" + _
+                "</td><td class= 'completiontd' ><div class='popup' onclick=myFunction(" + CStr(i + 100) + ")><span class='popuptext' id='myPopup" + CStr(i + 100) + "'>12/12/2016</span><input style='width:100%' type='text' name='' value='' disabled id='inputdisabled_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i + 100) + "'/></div></td></td></tr></table></div>"
+            ElseIf datasheet.Cells(i, 9).Text <> Empty Then
+                htmlRow = htmlRow + "<div class=  'ReadingsHistory formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table style = table-layout: fixed;><tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'  class='description'  width=50%><label class='completionLabel' id='label_reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class='completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label><td class= 'completiontd' ><input  style='width:100%' type='text'   name=''  value='' id='readingInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' />" + _
+                "</td><td class= 'completiontd'><label class='units' style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 9).Text + "</label></td><td class= 'completiontd' >" + _
+                "<div class='popup' onclick=myFunction(" + CStr(i) + ")><span class='popuptext' id='myPopup" + CStr(i) + "'>12/12/2017</span><input id='reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "' style='width:100%' type='text'   name=''  value=''  disabled/></div>" + _
+                "</td><td class= 'completiontd'><div class='popup' onclick=myFunction(" + CStr(i + 100) + ")><span class='popuptext' id='myPopup" + CStr(i + 100) + "'>12/12/2016</span><input id='reading_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i + 100) + "' style='width:100%' type='text' name='' value='' disabled/></div></td> </td></tr></table></div>"
+            End If
+        
+        'If the text-notes class is added in excel,
+        ElseIf (datasheet.Cells(i, 10).Text = "Text-Notes") Then 'Here
+        
+            htmlRow = htmlRow + "<div class=  'Substeps formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "><table border=0 style = table-layout: fixed;>" + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class='stepID' style='color: rgb(2, 113, 182)' >" + datasheet.Cells(i, 17).Text + "</div></td><td class='completiontd'  class='description'><label class='completionLabel' id='subSteps_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class='status'><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td></tr>" + _
+            "<tr><td class='completiontd' width='10%'></td><td class='completiontd' width='6%'></td><td><textarea rows='5' cols='80' id='subInput_" + controlsheet.Cells(2, 2).Text + "_" + Replace(datasheet.Cells(i, 17).Text, ".", "_") + "_" + CStr(i) + "'></textarea></td></tr></table></div>"
+            
+        ElseIf datasheet.Cells(i, 10).Text = "ReadingHeader" Then
+            htmlRow = htmlRow + "<div class =  'ReadingHeader formData' lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table style = table-layout: fixed;>" + "<tr><td class='completiontd' width='10%'></td><td class ='completiontd'  width='6%'><div class =stepID style='color: rgb(2, 113, 182)'>" + datasheet.Cells(i, 17).Text + "</div></td><td class= 'completiontd'  class=  description  ><label class='completionLabel'> " + datasheet.Cells(i, 6).Text + " </label></td><td class= 'completiontd'  class=  status  ><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td></tr></table></div>"
+        
+        'The below are comments that appear in italics:
+        ElseIf datasheet.Cells(i, 10).Text = "Comments" Then
+            htmlRow = htmlRow + "<div class =  'Comments formData' style=margin-left:17%; lineno =" + datasheet.Cells(i, 2).Text + "  stepNo=" + datasheet.Cells(i, 3).Text + "> <table>" + "<tr><td class= 'completiontd'  class=  description  ><label style='color: rgb(2,113,182)'> <i>" + datasheet.Cells(i, 6).Text + " </i></label></td><td class= 'completiontd'  class=  status  ><label class='completionLabel'> " + datasheet.Cells(i, 7).Text + " </label></td></tr></table></div>"
+        
+        End If
+     
+    Next
+    
+    For i = 0 To toolsIndex
+        toolsHtml = toolsHtml + "<div style='margin-left:2.5em'>" + toolsArray(i) + "</div>"
+    Next
+    
+    For i = 0 To abbreviationsIndex
+        abbreviationsHtml = abbreviationsHtml + "<div style='margin-left:2.5em'>" + abbreviationsArray(i) + "</div>"
+    Next
+    
+    For i = 0 To partsIndex
+        partsHtml = partsHtml + partsArray(i)
+    Next
+    
+    For i = 0 To dataIndex
+        dataHtml = dataHtml + "<tr><td style='width: 120px; float: left; margin-bottom:10px;'><b>" + dataArray(i) + "</b></td><td style='float: left;'><input type='text' id='data_" + controlsheet.Cells(2, 2).Text + "_" + CStr(i) + "' class='inputtxtbox'></td></tr>"
+    Next
+    
+    For i = 0 To clearanceIndex
+        clearanceHtml = clearanceHtml + "<div style='margin-left:2.5em'>" + clearanceArray(i) + "</div>"
+    Next
+    
+    htmlRow = Replace(htmlRow, "#Tools#", toolsHtml)
+    htmlRow = Replace(htmlRow, "#Parts#", partsHtml)
+    htmlRow = Replace(htmlRow, "#Abbreviations#", abbreviationsHtml)
+    htmlRow = Replace(htmlRow, "#DataContent#", dataHtml)
+    htmlRow = Replace(htmlRow, "#Clearance#", clearanceHtml)
+    
+    htmlRow = Replace(htmlRow, "#DataLabel#", "")
+    
+    htmlTable = htmlRow
+    htmlStr = htmlTable + "</table></form></body></html>"
+
+End Sub
+
+Private Sub UpdateHTMLFile()
+
+    Dim fso As Object
+    Dim myFile As Object
+
+
+       Set fso = CreateObject("Scripting.FileSystemObject")
+
+       Set myFile = fso.CreateTextFile(FilePath, True)
+
+       myFile.WriteLine htmlStr
+
+    myFile.Close
+    Set fso = Nothing
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
