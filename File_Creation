@@ -1,0 +1,89 @@
+Public controlsheet As Worksheet
+Public FilePath As String
+Public htmlStr As String
+
+
+Sub GenerateFromMasterSheets_Click()
+    ' Get the unique data in Column E of Master Sheets All.
+    ' Copy that to a list / data structure in excel.
+    'Dim control As Worksheet
+    Set controlsheet = ThisWorkbook.Worksheets("Control")
+    Dim TransfersSheet As Worksheet
+    
+    Dim formNames(), dict As Object, r As Long, i As Integer
+    Set dict = CreateObject("Scripting.Dictionary")
+
+    formNames = ThisWorkbook.Worksheets("MasterSheets_All").UsedRange.Columns(5).Value
+
+    For r = 1 To UBound(formNames)
+        If (dict.Exists(formNames(r, 1))) Then
+        Else
+            dict(formNames(r, 1)) = Empty
+        End If
+    Next
+    
+    dict.Remove ("SWE")
+    dict.Remove ("")
+
+    ' For each of the sheet names in that excel,
+    ' Create a sheet with that name, copy data to that sheet, call buildContent and Generate HTML functions, delete that sheet.
+    
+    For r = 0 To dict.Count - 1
+        'filter the MasterSheets sheet, create a sheet with that name, copy filtered data to that sheet.
+        FilterDataToSeperateSheet CStr(dict.Keys()(r))
+        
+        GenerateValidationJSON_Click
+        i = r + 11
+        BuildContent CStr(dict.Keys()(r)), controlsheet.Cells(7, 2), i, controlsheet.Cells(8, 2)
+        
+        
+        If controlsheet.Cells(7, 2).Text = "IL" And controlsheet.Cells(8, 2).Text = "Local" Then
+            FilePath = ThisWorkbook.Path & "\IL Forms\runtime-html\LocalBuild\" + CStr(dict.Keys()(r)) + ".html"
+        ElseIf controlsheet.Cells(7, 2).Text = "MO" And controlsheet.Cells(8, 2).Text = "Local" Then
+            FilePath = ThisWorkbook.Path & "\MO Forms\runtime-html\LocalBuild\" + CStr(dict.Keys()(r)) + ".html"
+        ElseIf controlsheet.Cells(7, 2).Text = "IL" And controlsheet.Cells(8, 2).Text = "Prod" Then
+            FilePath = ThisWorkbook.Path & "\IL Forms\runtime-html\ProdBuild\" + CStr(dict.Keys()(r)) + "_IL.html"
+        ElseIf controlsheet.Cells(7, 2).Text = "MO" And controlsheet.Cells(8, 2).Text = "Prod" Then
+            FilePath = ThisWorkbook.Path & "\MO Forms\runtime-html\ProdBuild\" + CStr(dict.Keys()(r)) + "_MO.html"
+        End If
+        
+        UpdateHTMLFile FilePath
+        
+        Application.DisplayAlerts = False
+        Set TransfersSheet = Worksheets(CStr(dict.Keys()(r)))
+        TransfersSheet.Delete
+        Application.DisplayAlerts = False
+    Next
+
+    MsgBox ("All sheets generated succesfully.")
+    
+End Sub
+
+
+Sub FilterDataToSeperateSheet(sheetName As String)
+    Dim datasheet As Worksheet
+    Set datasheet = ThisWorkbook.Worksheets("MasterSheets_All")
+    Dim TransfersSheet As Worksheet
+
+    datasheet.Range("E1").AutoFilter Field:=5, Criteria1:=sheetName
+    Dim CopyRng, DataRng As Range
+    Set DataRng = datasheet.Range("$A$1:$AA$4630")
+    Set CopyRng = DataRng.SpecialCells(xlCellTypeVisible)
+
+
+    If DoesSheetExist(sheetName) Then
+        Set TransfersSheet = Worksheets(sheetName)
+        TransfersSheet.Delete
+    End If
+
+    'create transfers sheet
+    Set TransfersSheet = Worksheets.Add
+    TransfersSheet.Name = sheetName
+
+    'paste the copied range to the transfers sheet
+    CopyRng.Copy
+    TransfersSheet.Range("A1").PasteSpecial Paste:=xlPasteAll
+    
+    
+
+End Sub
