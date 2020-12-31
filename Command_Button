@@ -1,0 +1,166 @@
+Public control As Worksheet
+Public FilePath As String
+Public htmlStr As String
+Public htmlHeader As String
+Public optionalHeader As String
+Public optionalContent As String
+Public headerContent As String
+Public htmlRow As String
+Public htmlTable As String
+Public htmlCount As Integer
+Public rangeStart As String
+Public rangeEnd As String
+Public HeaderRow As String
+Public iterator As Integer
+
+
+Sub CopyToSingleSheet()
+iterator = 11
+    If DoesSheetExistInCurrentWorkbook("MasterSheets_All") Then
+        Set TransfersSheet = ThisWorkbook.Worksheets("MasterSheets_All")
+        TransfersSheet.Delete
+    End If
+    Set TransfersSheet = ThisWorkbook.Worksheets.Add
+        TransfersSheet.Name = "MasterSheets_All"
+    HeaderRow = ""
+    GetFormsData_Click
+End Sub
+
+Sub GetFormsData_Click()
+rangeStart = ""
+    rangeEnd = ""
+Set control = ThisWorkbook.Worksheets("Control")
+Application.DisplayAlerts = False
+ If control.Cells(7, 2).Text = "IL" Then
+  GetFileDataInFormControl ThisWorkbook.Path & "\IL Forms", True, 14, 1
+  ElseIf control.Cells(7, 2).Text = "MO" Then
+   GetFileDataInFormControl ThisWorkbook.Path & "\MO Forms", True, 14, 1
+   End If
+Application.DisplayAlerts = True
+control.Range("A12:A10000").AutoFilter 1, "<>", , , False
+MsgBox "Copied All MasterSheet data into this excel"
+
+End Sub
+
+Function DoesSheetExistInCurrentWorkbook(WorksheetName As String) As Boolean
+    Dim sheet As Worksheet
+
+
+    For Each sheet In ThisWorkbook.Worksheets
+        If Application.Proper(sheet.Name) = Application.Proper(WorksheetName) Then
+            DoesSheetExistInCurrentWorkbook = True
+            Exit Function
+        End If
+    Next sheet
+DoesSheetExistInCurrentWorkbook = False
+End Function
+
+Sub GetFileDataInFormControl(SourceFolderName As String, Subfolders As Boolean, r As Long, i As Integer)
+
+'--- For Example:Folder Name= "D:\Folder Name\" and Flag as Yes or No
+
+Dim fso As Scripting.FileSystemObject
+Dim SourceFolder As Scripting.folder, SubFolder As Scripting.folder
+Dim FileItem As Scripting.File
+Dim htmlFileName As String
+
+Dim workSheetPath
+'Dim r As Long
+    Set fso = New Scripting.FileSystemObject
+    Set SourceFolder = fso.GetFolder(SourceFolderName)
+Set control = ThisWorkbook.Worksheets("Control")
+    '--- This is for displaying, whereever you want can be configured
+    
+   
+    For Each FileItem In SourceFolder.Files
+            
+        If (FileItem.Type = "Microsoft Excel Macro-Enabled Worksheet" And FileItem.Name <> "ValidationTable.xlsm") Then
+          workSheetPath = FileItem.Path
+          Application.DisplayAlerts = False
+          CopyDataFromInnerFolders workSheetPath, r
+          Application.DisplayAlerts = True
+          i = i + 1
+          If control.Cells(7, 2).Text = "IL" Then
+            control.Cells(r - 3, 2).Formula = "IL"
+            Else
+            control.Cells(r - 3, 2).Formula = "MO"
+            End If
+              
+         'CopyDataFromInnerFolder FileItem.Name, FileItem.Path, "D:\Projects\Ameren-VIdhya-GIT\Completion_Forms\HTML_Forms\Consolidated\FormControl.xlsm"
+         ElseIf (FileItem.Type = "JPG File") Or (FileItem.Type = "PNG File") Then
+          htmlFileName = ThisWorkbook.Path & "\IL Forms\runtime-html\" & FileItem.Name
+          FileCopy FileItem.Path, htmlFileName
+         End If
+        r = r + 1   ' next row number
+    Next
+    
+   
+   
+  
+    '--- This is the Function to go each and Every Folder and get the Files. This is a Nested-Function Calling.
+
+    If Subfolders = True Then
+        For Each SubFolder In SourceFolder.Subfolders
+            GetFileDataInFormControl SubFolder.Path, True, r, i
+        Next SubFolder
+    End If
+ control.Cells(11, 3).Formula = i
+    Set FileItem = Nothing
+    Set SourceFolder = Nothing
+    Set fso = Nothing
+End Sub
+
+Sub CopyDataFromInnerFolders(source, r As Long)
+Dim x As Workbook
+Dim y As Workbook
+Dim sheetName As String
+Dim control As Worksheet
+
+ 
+    
+    Dim TransfersSheet As Worksheet
+
+'## Open both workbooks first:
+  Set x = Workbooks.Open(source)
+   
+   
+    Set TransfersSheet = ThisWorkbook.Worksheets("MasterSheets_All")
+    Set control = ThisWorkbook.Worksheets("Control")
+    
+If Not x Is Nothing Then
+    Set datasheet = x.Sheets("FormData")
+    sheetName = datasheet.Cells(2, 5)
+    
+    Dim CopyRng, DataRng, HeaderRng As Range
+    
+    If (rangeEnd <> Empty) Then
+        
+        rangeStart = "A" & CInt(Replace(rangeEnd, "AA", "") - 1)
+    Else
+        rangeStart = "A" & TransfersSheet.Range("E" & Rows.Count).End(xlUp).Row
+        'rangeStart = "A1"
+    End If
+    rangeEnd = "AA" & (datasheet.Range("E" & Rows.Count).End(xlUp).Row + CInt(Replace(rangeStart, "A", "")))
+    
+    'Set DataRng = datasheet.Range("$A$1:$AA$4630")
+    If (HeaderRow = "") Then
+        Set HeaderRng = datasheet.Range("$A$1:$AA$1")
+        HeaderRng.Copy TransfersSheet.Range("$A$1:$AA$1")
+    End If
+    
+    
+    
+    Set DataRng = datasheet.Range("$A$2:$AA$" & datasheet.Range("E" & Rows.Count).End(xlUp).Row)
+    Set CopyRng = DataRng.SpecialCells(xlCellTypeVisible)
+    
+    CopyRng.Copy TransfersSheet.Range(rangeStart, rangeEnd)
+    End If
+    
+    
+    control.Cells(iterator, 1).Value = sheetName
+    control.Cells(iterator, 2).Value = control.Cells(7, 2).Value
+    iterator = iterator + 1
+
+x.Close
+
+End Sub
