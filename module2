@@ -1,0 +1,238 @@
+Public FilePath As String
+Public controlsheet As Worksheet
+Public formpath As String
+
+Sub GenerateValidationJSON_Click()
+
+    Dim filesystem As Scripting.FileSystemObject
+
+    Dim hostfolder As Object
+    Dim countOfSheets As Integer
+    Dim i As Integer
+    Dim FilePath As String
+    Dim activeWB As Workbook
+    Dim sheetName As String
+    
+    Set controlsheet = ThisWorkbook.Worksheets("Control")
+    Set activeWB = Application.ActiveWorkbook
+    'Go to each folder in the list, and check if there is a ValidationTable
+    
+    ' If validation table exist, open the excel and check if it is valid.
+    
+    ' If valid, Open the Master Input .xlsm in the same folder and update the json into it.
+    ' Close both the excel sheets.
+    countOfSheets = controlsheet.Range("A11:A3000").Cells.SpecialCells(xlCellTypeConstants).Count - 1
+    
+    'For i = 11 To countOfSheets + 11
+        'read the sheet name and check if there is a folder of that name:
+        'FilePath = Application.ActiveWorkbook.Path & "\" & activeWB.Sheets("Control").Cells(i, 1) & "\ValidationTable.xlsm"
+        
+        For i = 11 To (count_of_sheets + 1500)
+        sheetName = controlsheet.Cells(i, 1).Text
+        'If (controlsheet.Cells(i, 2) = "IL") Then
+            'filePath = Worksheets("Control").Cells(6, 2).Text + SheetName + ".html"
+        'ElseIf (controlsheet.Cells(i, 2) = "MO") Then
+            'filePath = Worksheets("Control").Cells(6, 2).Text + SheetName + ".html"
+        'End If
+        If (sheetName <> Empty) Then
+        CopyValidationSheet sheetName, activeWB.Sheets("Control").Cells(7, 2).Text, i
+        End If
+        'check if validation table exist inside that
+        
+    Next
+    
+End Sub
+
+
+Sub CopyValidationSheet(foldername As String, typename As String, rownum As Integer)
+    Dim wb As Workbook
+    Dim activeWB As Workbook
+    Dim FilePath As String
+    Dim requiredSheet As String
+    Dim validation As Worksheet
+    Dim countOfValidations As Integer
+    Set activeWB = Application.ActiveWorkbook
+    
+    FilePath = ThisWorkbook.Path + "\" + typename + " Forms\" + foldername + "\ValidationTable.xlsm"
+    requiredSheet = "Validations"
+    'Copy sheet:
+    If Dir(FilePath) = "" Then
+        'Exit Sub
+    Else
+        Set wb = Application.Workbooks.Open(FilePath)
+        Application.DisplayAlerts = False
+        Application.ScreenUpdating = False
+        'activeWB.Worksheets("Validations").Delete
+        wb.Worksheets(1).Copy After:=activeWB.Sheets(activeWB.Sheets.Count)
+        activeWB.Activate
+        wb.Close
+        Application.ScreenUpdating = True
+        Application.DisplayAlerts = True
+        
+        Set validation = activeWB.Sheets(requiredSheet)
+        countOfValidations = validation.Range("B9:B1000").Cells.SpecialCells(xlCellTypeConstants).Count - 1
+        
+        If validation.Cells(7, 3).Text = Empty And validation.Cells(7, 4).Text = Empty And validation.Cells(7, 5).Text = Empty Then
+            'this means that there are no conditions added in Validation Table, check if there are any default validations added:
+            'check if column B has any values, if value exists, get the count and pass to validation table.
+            If (countOfValidations > 0) Then
+                CreateDefaultMinMax countOfValidations, rownum
+                Application.DisplayAlerts = False
+                Application.ScreenUpdating = False
+                validation.Delete
+                Application.DisplayAlerts = True
+                Application.ScreenUpdating = True
+            End If
+            'MsgBox "ValidationSheet has no conditions added. Only default min-max will be applied if they exist."
+            Exit Sub
+        ElseIf (countOfValidations = 0) Then
+            'MsgBox "No Target Inputs added in Column B. Only default min-max will be added if they exist."
+            Exit Sub
+        Else
+            SortMultipleColumns validation
+            CreateMinMaxJSON rownum
+            Application.DisplayAlerts = False
+            Application.ScreenUpdating = False
+            validation.Delete
+            Application.DisplayAlerts = True
+            Application.ScreenUpdating = True
+        End If
+    End If
+End Sub
+
+Sub SortMultipleColumns(sheet As Worksheet)
+With sheet.Sort
+     .SortFields.Add key:=Range("B8"), Order:=xlAscending
+     .SetRange Range("B8:I100")
+     .Header = xlYes
+     .Apply
+End With
+End Sub
+
+Sub CreateMinMaxJSON(rowcount As Integer)
+    'Get count of entries in Column B:
+    Dim countOfValidations As Integer
+    Dim i As Integer
+    Dim validation As Worksheet
+    Dim condition_1 As String
+    Dim condition_2 As String
+    Dim condition_3 As String
+    Dim json As String
+    Dim inputMeterID As String
+    Dim counter As Integer
+    Dim control As Worksheet
+    
+    Set control = ThisWorkbook.Worksheets("Control")
+    Set validation = ThisWorkbook.Worksheets("Validations")
+    countOfValidations = validation.Range("B9:B1000").Cells.SpecialCells(xlCellTypeConstants).Count - 1
+    counter = 0
+    
+    condition_1 = validation.Cells(7, 3).Text
+    condition_2 = validation.Cells(7, 4).Text
+    condition_3 = validation.Cells(7, 5).Text
+    
+    json = "{"
+    
+    For i = 9 To (countOfValidations + 9)
+        If (validation.Cells(i, 6).Text <> "" Or validation.Cells(i, 7).Text <> "" Or validation.Cells(i, 8).Text <> "" Or validation.Cells(i, 9).Text <> "") Then
+            
+            inputMeterID = Replace(validation.Cells(i, 2).Text, " ", "_")
+            If (inputMeterID <> "") Then
+                If (InStr(json, "'" + inputMeterID + "'") > 0) Then
+                ' Case when meter id is present in JSON:
+                    json = json + ",{'dep':{"
+                Else
+                    If json <> "{" Then
+                        json = json + "],'" + inputMeterID + "':[{'dep':{"
+                    Else
+                        json = json + "'" + inputMeterID + "':[{'dep':{"
+                    End If
+                End If
+                counter = 0
+                    
+                If (condition_1 <> "" And validation.Cells(i, 3).Text <> "") Then
+                    json = json + "'" + condition_1 + "':'" + validation.Cells(i, 3).Text + "'"
+                    counter = counter + 1
+                End If
+                
+                If (condition_2 <> "" And validation.Cells(i, 4).Text <> "") Then
+                    If counter > 0 Then
+                        json = json + ","
+                    End If
+                    json = json + "'" + condition_2 + "':'" + validation.Cells(i, 4).Text + "'"
+                    counter = counter + 1
+                End If
+                
+                If (condition_3 <> "" And validation.Cells(i, 5).Text <> "") Then
+                    If counter > 0 Then
+                        json = json + ","
+                    End If
+                    json = json + "'" + condition_3 + "':'" + validation.Cells(i, 5).Text + "'"
+                    counter = counter + 1
+                End If
+                
+                counter = 0
+                
+                json = json + "},'range':{"
+                json = json + "'emin':'" + validation.Cells(i, 8).Text + "',"
+                json = json + "'emax':'" + validation.Cells(i, 9).Text + "',"
+                json = json + "'wmin':'" + validation.Cells(i, 6).Text + "',"
+                json = json + "'wmax':'" + validation.Cells(i, 7).Text + "'}}"
+            End If
+        End If
+        
+    Next
+    json = json + "]}"
+    
+    control.Cells(rowcount, 4).Value = json
+    
+    
+    
+End Sub
+
+Sub CreateDefaultMinMax(countOfValidations As Integer, rownum As Integer)
+    Dim i As Integer
+    Dim json As String
+    Dim validation As Worksheet
+    Dim control As Worksheet
+    
+    Set control = ThisWorkbook.Worksheets("Control")
+    Set validation = ThisWorkbook.Worksheets("Validations")
+    
+    json = "{"
+    For i = 9 To (countOfValidations + 9)
+        If (validation.Cells(i, 6).Text <> "" Or validation.Cells(i, 7).Text <> "" Or validation.Cells(i, 8).Text <> "" Or validation.Cells(i, 9).Text <> "") Then
+            If (validation.Cells(i, 2).Text <> Empty) Then
+                If json <> "{" Then 'json has a previous value
+                    json = json + ","
+                End If
+                json = json + "'" + Replace(validation.Cells(i, 2).Text, " ", "_") + "':'id,"
+                If (validation.Cells(i, 6).Text <> Empty) Then
+                    json = json + validation.Cells(i, 6).Text + ","
+                Else
+                    json = json + "9999999999,"
+                End If
+                
+                If (validation.Cells(i, 7).Text <> Empty) Then
+                    json = json + validation.Cells(i, 7).Text + ","
+                Else
+                    json = json + "9999999999,"
+                End If
+                
+                If (validation.Cells(i, 8).Text <> Empty) Then
+                    json = json + validation.Cells(i, 8).Text + ","
+                Else
+                    json = json + "9999999999,"
+                End If
+                
+                If (validation.Cells(i, 9).Text <> Empty) Then
+                    json = json + validation.Cells(i, 9).Text + "'"
+                Else
+                    json = json + "9999999999'"
+                End If
+            End If
+        End If
+    Next
+    json = json + "}"
+    control.Cells(rownum, 5).Value = json
+End Sub
